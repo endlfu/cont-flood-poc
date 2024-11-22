@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/shirou/gopsutil/mem"
@@ -42,7 +43,7 @@ func (s *healthServer) Check(ctx context.Context, req *health.HealthCheckRequest
 	}, nil
 }
 
-func printCPUUsage(interval time.Duration) {
+func printUsage(interval time.Duration) {
 
 	proc, err := process.NewProcess(int32(os.Getpid()))
 	if err != nil {
@@ -56,7 +57,14 @@ func printCPUUsage(interval time.Duration) {
 			fmt.Printf("Error retrieving process CPU usage: %s\r", err)
 			continue
 		}
-		fmt.Printf("Process CPU Usage: %.2f%%\r", percent)
+
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		fmt.Printf("Process CPU Usage: %.2f%%", percent)
+		fmt.Printf(" Alloc = %v MiB", m.Alloc/1024/1024)
+		fmt.Printf(" TotalAlloc = %v MiB", m.TotalAlloc/1024/1024)
+		fmt.Printf(" Sys = %v MiB", m.Sys/1024/1024)
+		fmt.Printf(" NumGC = %v\n", m.NumGC)
 		time.Sleep(interval) // Ensure it waits for the specified interval
 	}
 }
@@ -78,7 +86,7 @@ func main() {
 	healthSvc := &healthServer{}
 	health.RegisterHealthServiceServer(server, healthSvc)
 
-	go printCPUUsage(2 * time.Second)
+	go printUsage(200 * time.Millisecond)
 
 	log.Printf("Starting gRPC server on port %d", port)
 	server.Serve(lis)
